@@ -1,8 +1,8 @@
 package talker
 
 import (
-	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 )
 
 // Attr is a data structure that represents an attribute.
@@ -49,25 +49,13 @@ func (a Attr[T]) Get() T {
 	return a.value
 }
 
-// Value returns the value of the attribute.
-func (a Attr[T]) Value() (driver.Value, error) {
-	if !a.filled {
-		return nil, nil
-	}
-
-	return a.Get(), nil
+func (a Attr[T]) IsZero() bool {
+	return !a.present
 }
 
-// Scan assigns a value from a database driver.
-func (a *Attr[T]) Scan(value interface{}) error {
-	if value == nil {
-		*a = Null[T]()
-		return nil
-	}
-
-	*a = Value[T](value.(T))
-
-	return nil
+// String returns the string representation of the attribute.
+func (a Attr[T]) String() string {
+	return fmt.Sprintf("%v", a.value)
 }
 
 // MarshalJSON returns the JSON encoding of the attribute.
