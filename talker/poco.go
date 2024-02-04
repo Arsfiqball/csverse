@@ -113,7 +113,14 @@ type ErrorData struct {
 	Info     string      `json:"info"`
 	Location string      `json:"location"`
 	Data     interface{} `json:"data"`
-	Child    *ErrorData  `json:"child"`
+}
+
+func (e ErrorData) String() string {
+	return fmt.Sprintf("%s: %s at %s", e.Code, e.Info, e.Location)
+}
+
+type unwrapper interface {
+	Unwrap() error
 }
 
 // ErrorDataFrom creates an ErrorData from the given error.
@@ -126,10 +133,22 @@ type ErrorData struct {
 //	errContainer = errContainer.Wrap(errors.New("wrapped error"))
 //	errData := talker.ErrorDataFrom(errContainer, 10)
 //	fmt.Println(errData)
-func ErrorDataFrom(err error, depth int) *ErrorData {
+func ErrorDataFrom(err error, depth int) []ErrorData {
+	errs := []ErrorData{}
+
+	if err == nil || depth < 0 {
+		return errs
+	}
+
 	pocoErr, ok := err.(Error)
 	if !ok {
-		return nil
+		errs = append(errs, ErrorData{
+			Code:     "unknown",
+			Info:     err.Error(),
+			Location: "unknown",
+		})
+
+		return errs
 	}
 
 	location := pocoErr.declaredAt
@@ -138,18 +157,19 @@ func ErrorDataFrom(err error, depth int) *ErrorData {
 		location = pocoErr.wrappedAt
 	}
 
-	result := &ErrorData{
+	errs = append(errs, ErrorData{
 		Code:     pocoErr.code,
 		Info:     pocoErr.info,
 		Location: location,
 		Data:     pocoErr.data,
+	})
+
+	// Check if the error implements the unwrapper interface
+	if unwrapped, ok := err.(unwrapper); ok && depth > 0 {
+		errs = append(errs, ErrorDataFrom(unwrapped.Unwrap(), depth-1)...)
 	}
 
-	if depth > 0 && pocoErr.parent != nil {
-		result.Child = ErrorDataFrom(pocoErr.parent, depth-1)
-	}
-
-	return result
+	return errs
 }
 
 // Recover recovers from a panic and converts it to an Error.
@@ -189,11 +209,11 @@ func RecoverAs(out *Error, depth int) {
 			}
 
 			childErr := Error{
-				code:       pocoErr.code,
-				info:       fmt.Sprintf("stack %d", i-skip),
+				code:       "panic",
+				info:       fmt.Sprintf("stack %d: %s", i-skip, name),
 				declaredAt: fmt.Sprintf("%s:%d", file, line),
-				wrappedAt:  fmt.Sprintf("%s:%d %s", file, line, name),
-				parent:     &pocoErr,
+				wrappedAt:  fmt.Sprintf("%s:%d", file, line),
+				parent:     pocoErr,
 			}
 
 			pocoErr = childErr
