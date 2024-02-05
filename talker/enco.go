@@ -224,3 +224,84 @@ func Present(attrs ...Presenter) bool {
 
 	return true
 }
+
+type M map[string]any
+
+type Element struct {
+	tag     string
+	attrs   M
+	content string
+}
+
+func NewElement(tag string) Element {
+	return Element{tag: tag, attrs: M{}}
+}
+
+func (e Element) With(key string, value any) Element {
+	e.attrs[key] = value
+
+	return e
+}
+
+func (e Element) Content(contents ...any) Element {
+	e.content = "" // Reset the content.
+
+	for _, content := range contents {
+		e.content += fmt.Sprintf("%v", content)
+	}
+
+	return e
+}
+
+func (e Element) String() string {
+	attrStr := ""
+
+	for key, value := range e.attrs {
+		if p, ok := value.(Presenter); ok && !p.Present() {
+			continue
+		}
+
+		attrStr += fmt.Sprintf(` %s="%v"`, key, value)
+	}
+
+	return fmt.Sprintf("<%s%s>%s</%s>", e.tag, attrStr, e.content, e.tag)
+}
+
+type Cond struct {
+	cond  bool
+	value any
+}
+
+func If(cond bool) Cond {
+	return Cond{cond: cond}
+}
+
+func (c Cond) Then(value any) Cond {
+	if c.cond {
+		c.value = value
+	}
+
+	return c
+}
+
+func (c Cond) Else(value any) Cond {
+	if !c.cond {
+		c.value = value
+	}
+
+	return c
+}
+
+func (c Cond) String() string {
+	return fmt.Sprintf("%v", c.value)
+}
+
+func ForEach[T any](items []T, fn func(T) any) string {
+	content := ""
+
+	for _, item := range items {
+		content += fmt.Sprintf("%v", fn(item))
+	}
+
+	return content
+}

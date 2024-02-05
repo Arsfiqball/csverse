@@ -197,3 +197,49 @@ func TestAttr(t *testing.T) {
 		}
 	})
 }
+
+func TestElement(t *testing.T) {
+	div := talker.NewElement("div")
+	span := talker.NewElement("span")
+
+	type sampleT struct {
+		ID   talker.Attr[int]
+		Name talker.Attr[string]
+		Age  talker.Attr[int]
+	}
+
+	sample := sampleT{
+		ID:   talker.Value(1),
+		Name: talker.Value("John"),
+		Age:  talker.Value(30),
+	}
+
+	names := []string{"John", "Doe", "Jane"}
+
+	templ := func(sample sampleT, names []string) talker.Element {
+		return div.With("id", "container").Content(
+			span.With("class", "text").Content("Hello, World!"),
+			talker.If(sample.ID.Filled() && sample.ID.Get() == 10).
+				Then(
+					talker.ForEach(names, func(name string) any {
+						return span.With("class", "text").Content(name)
+					}),
+				).
+				Else(span.With("class", "text").Content("This is not a test.")),
+		)
+	}
+
+	test1 := templ(sample, names)
+
+	if test1.String() != `<div id="container"><span class="text">Hello, World!</span><span class="text">This is not a test.</span></div>` {
+		t.Fatal("document is not as expected")
+	}
+
+	sample.ID = talker.Value(10)
+
+	test2 := templ(sample, names)
+
+	if test2.String() != `<div id="container"><span class="text">Hello, World!</span><span class="text">John</span><span class="text">Doe</span><span class="text">Jane</span></div>` {
+		t.Fatal("document is not as expected")
+	}
+}
