@@ -199,8 +199,8 @@ func TestAttr(t *testing.T) {
 }
 
 func TestElement(t *testing.T) {
-	div := talker.NewElement("div")
-	span := talker.NewElement("span")
+	container := talker.NewElement("div").With("id", "container")
+	text := talker.NewElement("span").With("class", "text")
 
 	type sampleT struct {
 		ID   talker.Attr[int]
@@ -217,15 +217,11 @@ func TestElement(t *testing.T) {
 	names := []string{"John", "Doe", "Jane"}
 
 	templ := func(sample sampleT, names []string) talker.Element {
-		return div.With("id", "container").Content(
-			span.With("class", "text").Content("Hello, World!"),
+		return container.Content(
+			text.Content("Hello, World!"),
 			talker.If(sample.ID.Filled() && sample.ID.Get() == 10).
-				Then(
-					talker.ForEach(names, func(name string) any {
-						return span.With("class", "text").Content(name)
-					}),
-				).
-				Else(span.With("class", "text").Content("This is not a test.")),
+				Then(talker.ForEach(names, func(name string) any { return text.Content(name) })).
+				Else(text.Content("This is not a test.")),
 		)
 	}
 
