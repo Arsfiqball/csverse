@@ -218,10 +218,10 @@ func TestElement(t *testing.T) {
 
 	templ := func(sample sampleT, names []string) talker.Element {
 		return container.Content(
-			text.Content("Hello, World!"),
+			text.Text("Hello, World!"),
 			talker.If(sample.ID.Filled() && sample.ID.Get() == 10).
-				Then(talker.ForEach(names, func(name string) any { return text.Content(name) })).
-				Else(text.Content("This is not a test.")),
+				Then(talker.ForEach(names, func(name string) talker.Node { return text.Text(name) })...).
+				Else(text.Text("This is not a test.")),
 		)
 	}
 

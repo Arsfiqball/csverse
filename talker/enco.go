@@ -225,34 +225,82 @@ func Present(attrs ...Presenter) bool {
 	return true
 }
 
-type M map[string]any
-
-type Element struct {
-	tag     string
-	attrs   M
-	content string
+// Node is a data structure that represents a node in a tree.
+type Node interface {
+	String() string
+	Childs() []Node
 }
 
+// Text is a data structure that represents a text node.
+type Text struct {
+	text string
+}
+
+var _ Node = Text{}
+
+// NewText returns a new text node.
+func NewText(text string) Text {
+	return Text{text: text}
+}
+
+// String returns the string representation of the text node.
+func (t Text) String() string {
+	return t.text
+}
+
+// Childs returns the child nodes of the text node.
+func (t Text) Childs() []Node {
+	return nil
+}
+
+// M is a data structure that represents a map.
+type M map[string]any
+
+// Element is a data structure that represents an element node.
+type Element struct {
+	tag    string
+	attrs  M
+	childs []Node
+}
+
+var _ Node = Element{}
+
+// NewElement returns a new element node.
 func NewElement(tag string) Element {
 	return Element{tag: tag, attrs: M{}}
 }
 
+// With adds an attribute to the element node.
 func (e Element) With(key string, value any) Element {
 	e.attrs[key] = value
 
 	return e
 }
 
-func (e Element) Content(contents ...any) Element {
-	e.content = "" // Reset the content.
+// Content adds child nodes to the element node.
+func (e Element) Content(contents ...Node) Element {
+	e.childs = contents
 
-	for _, content := range contents {
-		e.content += fmt.Sprintf("%v", content)
+	return e
+}
+
+// Text adds text nodes to the element node.
+func (e Element) Text(texts ...string) Element {
+	e.childs = make([]Node, len(texts))
+
+	for i, text := range texts {
+		e.childs[i] = NewText(text)
 	}
 
 	return e
 }
 
+// Childs returns the child nodes of the element node.
+func (e Element) Childs() []Node {
+	return e.childs
+}
+
+// String returns the string representation of the element node.
 func (e Element) String() string {
 	attrStr := ""
 
@@ -264,44 +312,73 @@ func (e Element) String() string {
 		attrStr += fmt.Sprintf(` %s="%v"`, key, value)
 	}
 
-	return fmt.Sprintf("<%s%s>%s</%s>", e.tag, attrStr, e.content, e.tag)
+	content := ""
+
+	for _, child := range e.childs {
+		content += fmt.Sprintf("%v", child)
+	}
+
+	if e.tag == "" {
+		return content
+	}
+
+	return fmt.Sprintf("<%s%s>%s</%s>", e.tag, attrStr, content, e.tag)
 }
 
+// Cond is a data structure that represents a conditional node.
 type Cond struct {
-	cond  bool
-	value any
+	cond   bool
+	values []Node
 }
 
+var _ Node = Cond{}
+
+// If returns a new conditional node.
 func If(cond bool) Cond {
 	return Cond{cond: cond}
 }
 
-func (c Cond) Then(value any) Cond {
+// Then adds child nodes to the conditional node if the condition is true.
+func (c Cond) Then(values ...Node) Cond {
 	if c.cond {
-		c.value = value
+		c.values = values
 	}
 
 	return c
 }
 
-func (c Cond) Else(value any) Cond {
+// Else adds child nodes to the conditional node if the condition is false.
+func (c Cond) Else(values ...Node) Cond {
 	if !c.cond {
-		c.value = value
+		c.values = values
 	}
 
 	return c
 }
 
-func (c Cond) String() string {
-	return fmt.Sprintf("%v", c.value)
+// Childs returns the child nodes of the conditional node.
+func (c Cond) Childs() []Node {
+	return c.values
 }
 
-func ForEach[T any](items []T, fn func(T) any) string {
+// String returns the string representation of the conditional node.
+func (c Cond) String() string {
 	content := ""
 
-	for _, item := range items {
-		content += fmt.Sprintf("%v", fn(item))
+	for _, child := range c.values {
+		content += fmt.Sprintf("%v", child)
 	}
 
 	return content
+}
+
+// ForEach is a function that applies a function to each item in a list and returns a new list.
+func ForEach[T any, U any](items []T, fn func(T) U) []U {
+	newItems := make([]U, len(items))
+
+	for i, item := range items {
+		newItems[i] = fn(item)
+	}
+
+	return newItems
 }
