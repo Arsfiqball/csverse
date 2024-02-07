@@ -267,7 +267,7 @@ var _ Node = Element{}
 
 // NewElement returns a new element node.
 func NewElement(tag string) Element {
-	return Element{tag: tag, attrs: M{}}
+	return Element{tag: tag, attrs: M{}, childs: []Node{}}
 }
 
 // With adds an attribute to the element node.
@@ -335,7 +335,7 @@ var _ Node = Cond{}
 
 // If returns a new conditional node.
 func If(cond bool) Cond {
-	return Cond{cond: cond}
+	return Cond{cond: cond, values: []Node{}}
 }
 
 // Then adds child nodes to the conditional node if the condition is true.
@@ -381,4 +381,44 @@ func ForEach[T any, U any](items []T, fn func(T) U) []U {
 	}
 
 	return newItems
+}
+
+type Template[T any] struct {
+	attrs  T
+	childs []Node
+	render func(T, []Node) Node
+}
+
+var _ Node = Template[any]{}
+
+func NewTemplate[T any](render func(T, []Node) Node) Template[T] {
+	var attrs T
+
+	if render == nil {
+		render = func(attrs T, childs []Node) Node {
+			return NewElement("")
+		}
+	}
+
+	return Template[T]{render: render, attrs: attrs, childs: []Node{}}
+}
+
+func (t Template[T]) With(attrs T) Template[T] {
+	t.attrs = attrs
+
+	return t
+}
+
+func (t Template[T]) Content(contents ...Node) Template[T] {
+	t.childs = contents
+
+	return t
+}
+
+func (t Template[T]) Childs() []Node {
+	return t.childs
+}
+
+func (t Template[T]) String() string {
+	return fmt.Sprintf("%v", t.render(t.attrs, t.childs))
 }

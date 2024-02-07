@@ -208,6 +208,20 @@ func TestElement(t *testing.T) {
 		Age  talker.Attr[int]
 	}
 
+	type templateT struct {
+		sample sampleT
+		names  []string
+	}
+
+	template := talker.NewTemplate[templateT](func(tt templateT, n []talker.Node) talker.Node {
+		return container.Content(
+			text.Text("Hello, World!"),
+			talker.If(tt.sample.ID.Filled() && tt.sample.ID.Get() == 10).
+				Then(talker.ForEach(tt.names, func(name string) talker.Node { return text.Text(name) })...).
+				Else(text.Text("This is not a test.")),
+		)
+	})
+
 	sample := sampleT{
 		ID:   talker.Value(1),
 		Name: talker.Value("John"),
@@ -216,16 +230,7 @@ func TestElement(t *testing.T) {
 
 	names := []string{"John", "Doe", "Jane"}
 
-	templ := func(sample sampleT, names []string) talker.Element {
-		return container.Content(
-			text.Text("Hello, World!"),
-			talker.If(sample.ID.Filled() && sample.ID.Get() == 10).
-				Then(talker.ForEach(names, func(name string) talker.Node { return text.Text(name) })...).
-				Else(text.Text("This is not a test.")),
-		)
-	}
-
-	test1 := templ(sample, names)
+	test1 := template.With(templateT{sample: sample, names: names})
 
 	if test1.String() != `<div id="container"><span class="text">Hello, World!</span><span class="text">This is not a test.</span></div>` {
 		t.Fatal("document is not as expected")
@@ -233,7 +238,7 @@ func TestElement(t *testing.T) {
 
 	sample.ID = talker.Value(10)
 
-	test2 := templ(sample, names)
+	test2 := template.With(templateT{sample: sample, names: names})
 
 	if test2.String() != `<div id="container"><span class="text">Hello, World!</span><span class="text">John</span><span class="text">Doe</span><span class="text">Jane</span></div>` {
 		t.Fatal("document is not as expected")
