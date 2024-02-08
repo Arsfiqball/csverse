@@ -213,11 +213,11 @@ func TestElement(t *testing.T) {
 		names  []string
 	}
 
-	template := talker.NewTemplate[templateT](func(tt templateT, n []talker.Node) talker.Node {
+	template := talker.NewTemplate[templateT](func(tt templateT, n []fmt.Stringer) fmt.Stringer {
 		return container.Content(
 			text.Text("Hello, World!"),
 			talker.If(tt.sample.ID.Filled() && tt.sample.ID.Get() == 10).
-				Then(talker.ForEach(tt.names, func(name string) talker.Node { return text.Text(name) })...).
+				Then(talker.ForEach(tt.names, func(name string) fmt.Stringer { return text.Text(name) })...).
 				Else(text.Text("This is not a test.")),
 		)
 	})
@@ -243,4 +243,75 @@ func TestElement(t *testing.T) {
 	if test2.String() != `<div id="container"><span class="text">Hello, World!</span><span class="text">John</span><span class="text">Doe</span><span class="text">Jane</span></div>` {
 		t.Fatal("document is not as expected")
 	}
+}
+
+func TestObject(t *testing.T) {
+	type subT struct {
+		ID   talker.Attr[int]    `json:"id"`
+		Name talker.Attr[string] `json:"name"`
+	}
+
+	type sampleT struct {
+		ID   talker.Attr[int]    `json:"id"`
+		Name talker.Attr[string] `json:"name"`
+		Age  talker.Attr[int]    `json:"age"`
+		Sub  talker.Attr[subT]   `json:"sub"`
+	}
+
+	sample := sampleT{
+		ID:   talker.Value(1),
+		Name: talker.Value("John"),
+		Age:  talker.Value(30),
+		Sub: talker.Value[subT](subT{
+			ID:   talker.Value(1),
+			Name: talker.Value("John"),
+		}),
+	}
+
+	object := func(s sampleT) fmt.Stringer {
+		return talker.NewObject().
+			WithQuoted("id", s.ID). // render as string, even if it's a number
+			WithQuoted("name", s.Name).
+			With("age", s.Age).
+			With("sub", talker.NewObject().
+				WithQuoted("id", s.Sub.Get().ID).
+				WithQuoted("name", s.Sub.Get().Name).
+				WithEmptyBehavior(talker.OmitEmpty),
+			)
+	}
+
+	if !equalJson(object(sample).String(), `{"age":30,"id":"1","name":"John","sub":{"id":"1","name":"John"}}`) {
+		t.Fatal("object is not as expected")
+	}
+
+	sample.Age = talker.Omit[int]()
+
+	if !equalJson(object(sample).String(), `{"id":"1","name":"John","sub":{"id":"1","name":"John"}}`) {
+		t.Fatal("object is not as expected")
+	}
+
+	sub := sample.Sub.Get()
+	sub.Name = talker.Null[string]()
+	sample.Sub = talker.Value[subT](sub)
+
+	if !equalJson(object(sample).String(), `{"id":"1","name":"John","sub":{"id":"1","name":null}}`) {
+		t.Fatal("object is not as expected")
+	}
+
+	sample.Sub = talker.Null[subT]()
+
+	if !equalJson(object(sample).String(), `{"id":"1","name":"John"}`) {
+		t.Fatal("object is not as expected")
+	}
+}
+
+func equalJson(a, b string) bool {
+	var x, y interface{}
+	if err := json.Unmarshal([]byte(a), &x); err != nil {
+		return false
+	}
+	if err := json.Unmarshal([]byte(b), &y); err != nil {
+		return false
+	}
+	return fmt.Sprintf("%v", x) == fmt.Sprintf("%v", y)
 }

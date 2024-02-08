@@ -225,68 +225,227 @@ func Present(attrs ...Presenter) bool {
 	return true
 }
 
-// Node is a data structure that represents a node in a tree.
-type Node interface {
-	String() string
-	Childs() []Node
+type EmptyBehavior int
+
+const (
+	ZeroEmpty EmptyBehavior = iota
+	OmitEmpty
+	NullEmpty
+)
+
+type Object struct {
+	emptyBehavior EmptyBehavior
+	attrs         map[string]string
 }
 
-// Text is a data structure that represents a text node.
+var _ fmt.Stringer = Object{}
+
+func NewObject() Object {
+	return Object{attrs: map[string]string{}, emptyBehavior: ZeroEmpty}
+}
+
+func (o Object) WithEmptyBehavior(emptyBehavior EmptyBehavior) Object {
+	o.emptyBehavior = emptyBehavior
+
+	return o
+}
+
+func (o Object) Present() bool {
+	if len(o.attrs) == 0 && o.emptyBehavior == OmitEmpty {
+		return false
+	}
+
+	return true
+}
+
+func (o Object) Filled() bool {
+	if len(o.attrs) == 0 && o.emptyBehavior != ZeroEmpty {
+		return false
+	}
+
+	return true
+}
+
+func (o Object) With(key string, value any) Object {
+	if p, ok := value.(Presenter); ok && !p.Present() {
+		return o
+	}
+
+	if f, ok := value.(Filler); ok && !f.Filled() {
+		o.attrs[key] = "null"
+
+		return o
+	}
+
+	o.attrs[key] = fmt.Sprintf("%v", value)
+
+	return o
+}
+
+func (o Object) WithQuoted(key string, value any) Object {
+	if p, ok := value.(Presenter); ok && !p.Present() {
+		return o
+	}
+
+	if f, ok := value.(Filler); ok && !f.Filled() {
+		o.attrs[key] = "null"
+
+		return o
+	}
+
+	o.attrs[key] = fmt.Sprintf(`"%s"`, value)
+
+	return o
+}
+
+func (o Object) String() string {
+	attrStr := "{"
+	total := len(o.attrs)
+
+	for key, value := range o.attrs {
+		attrStr += fmt.Sprintf(`"%s":%v`, key, value)
+
+		if total > 1 {
+			attrStr += ","
+		}
+
+		total--
+	}
+
+	return attrStr + "}"
+}
+
+type Array struct {
+	emptyBehavior EmptyBehavior
+	values        []string
+}
+
+func NewArray() Array {
+	return Array{values: []string{}, emptyBehavior: ZeroEmpty}
+}
+
+func (a Array) WithEmptyBehavior(emptyBehavior EmptyBehavior) Array {
+	a.emptyBehavior = emptyBehavior
+
+	return a
+}
+
+func (a Array) Present() bool {
+	if len(a.values) == 0 && a.emptyBehavior == OmitEmpty {
+		return false
+	}
+
+	return true
+}
+
+func (a Array) Filled() bool {
+	if len(a.values) == 0 && a.emptyBehavior != ZeroEmpty {
+		return false
+	}
+
+	return true
+}
+
+func (a Array) Add(value any) Array {
+	if p, ok := value.(Presenter); ok && !p.Present() {
+		return a
+	}
+
+	if f, ok := value.(Filler); ok && !f.Filled() {
+		a.values = append(a.values, "null")
+
+		return a
+	}
+
+	a.values = append(a.values, fmt.Sprintf("%v", value))
+
+	return a
+}
+
+func (a Array) AddQuoted(value any) Array {
+	if p, ok := value.(Presenter); ok && !p.Present() {
+		return a
+	}
+
+	if f, ok := value.(Filler); ok && !f.Filled() {
+		a.values = append(a.values, "null")
+
+		return a
+	}
+
+	a.values = append(a.values, fmt.Sprintf(`"%s"`, value))
+
+	return a
+}
+
+func (a Array) String() string {
+	attrStr := "["
+	total := len(a.values)
+
+	for _, value := range a.values {
+		attrStr += value
+
+		if total > 1 {
+			attrStr += ","
+		}
+
+		total--
+	}
+
+	return attrStr + "]"
+}
+
+// Text is a data structure that represents a text fmt.Stringer.
 type Text struct {
 	text string
 }
 
-var _ Node = Text{}
+var _ fmt.Stringer = Text{}
 
-// NewText returns a new text node.
+// NewText returns a new text fmt.Stringer.
 func NewText(text string) Text {
 	return Text{text: text}
 }
 
-// String returns the string representation of the text node.
+// String returns the string representation of the text fmt.Stringer.
 func (t Text) String() string {
 	return t.text
-}
-
-// Childs returns the child nodes of the text node.
-func (t Text) Childs() []Node {
-	return nil
 }
 
 // M is a data structure that represents a map.
 type M map[string]any
 
-// Element is a data structure that represents an element node.
+// Element is a data structure that represents an element fmt.Stringer.
 type Element struct {
 	tag    string
 	attrs  M
-	childs []Node
+	childs []fmt.Stringer
 }
 
-var _ Node = Element{}
+var _ fmt.Stringer = Element{}
 
-// NewElement returns a new element node.
+// NewElement returns a new element fmt.Stringer.
 func NewElement(tag string) Element {
-	return Element{tag: tag, attrs: M{}, childs: []Node{}}
+	return Element{tag: tag, attrs: M{}, childs: []fmt.Stringer{}}
 }
 
-// With adds an attribute to the element node.
+// With adds an attribute to the element fmt.Stringer.
 func (e Element) With(key string, value any) Element {
 	e.attrs[key] = value
 
 	return e
 }
 
-// Content adds child nodes to the element node.
-func (e Element) Content(contents ...Node) Element {
+// Content adds child fmt.Stringers to the element fmt.Stringer.
+func (e Element) Content(contents ...fmt.Stringer) Element {
 	e.childs = contents
 
 	return e
 }
 
-// Text adds text nodes to the element node.
+// Text adds text fmt.Stringers to the element fmt.Stringer.
 func (e Element) Text(texts ...string) Element {
-	e.childs = make([]Node, len(texts))
+	e.childs = make([]fmt.Stringer, len(texts))
 
 	for i, text := range texts {
 		e.childs[i] = NewText(text)
@@ -295,12 +454,7 @@ func (e Element) Text(texts ...string) Element {
 	return e
 }
 
-// Childs returns the child nodes of the element node.
-func (e Element) Childs() []Node {
-	return e.childs
-}
-
-// String returns the string representation of the element node.
+// String returns the string representation of the element fmt.Stringer.
 func (e Element) String() string {
 	attrStr := ""
 
@@ -325,21 +479,21 @@ func (e Element) String() string {
 	return fmt.Sprintf("<%s%s>%s</%s>", e.tag, attrStr, content, e.tag)
 }
 
-// Cond is a data structure that represents a conditional node.
+// Cond is a data structure that represents a conditional fmt.Stringer.
 type Cond struct {
 	cond   bool
-	values []Node
+	values []fmt.Stringer
 }
 
-var _ Node = Cond{}
+var _ fmt.Stringer = Cond{}
 
-// If returns a new conditional node.
+// If returns a new conditional fmt.Stringer.
 func If(cond bool) Cond {
-	return Cond{cond: cond, values: []Node{}}
+	return Cond{cond: cond, values: []fmt.Stringer{}}
 }
 
-// Then adds child nodes to the conditional node if the condition is true.
-func (c Cond) Then(values ...Node) Cond {
+// Then adds child fmt.Stringers to the conditional fmt.Stringer if the condition is true.
+func (c Cond) Then(values ...fmt.Stringer) Cond {
 	if c.cond {
 		c.values = values
 	}
@@ -347,8 +501,8 @@ func (c Cond) Then(values ...Node) Cond {
 	return c
 }
 
-// Else adds child nodes to the conditional node if the condition is false.
-func (c Cond) Else(values ...Node) Cond {
+// Else adds child fmt.Stringers to the conditional fmt.Stringer if the condition is false.
+func (c Cond) Else(values ...fmt.Stringer) Cond {
 	if !c.cond {
 		c.values = values
 	}
@@ -356,12 +510,7 @@ func (c Cond) Else(values ...Node) Cond {
 	return c
 }
 
-// Childs returns the child nodes of the conditional node.
-func (c Cond) Childs() []Node {
-	return c.values
-}
-
-// String returns the string representation of the conditional node.
+// String returns the string representation of the conditional fmt.Stringer.
 func (c Cond) String() string {
 	content := ""
 
@@ -385,22 +534,22 @@ func ForEach[T any, U any](items []T, fn func(T) U) []U {
 
 type Template[T any] struct {
 	attrs  T
-	childs []Node
-	render func(T, []Node) Node
+	childs []fmt.Stringer
+	render func(T, []fmt.Stringer) fmt.Stringer
 }
 
-var _ Node = Template[any]{}
+var _ fmt.Stringer = Template[any]{}
 
-func NewTemplate[T any](render func(T, []Node) Node) Template[T] {
+func NewTemplate[T any](render func(T, []fmt.Stringer) fmt.Stringer) Template[T] {
 	var attrs T
 
 	if render == nil {
-		render = func(attrs T, childs []Node) Node {
+		render = func(attrs T, childs []fmt.Stringer) fmt.Stringer {
 			return NewElement("")
 		}
 	}
 
-	return Template[T]{render: render, attrs: attrs, childs: []Node{}}
+	return Template[T]{render: render, attrs: attrs, childs: []fmt.Stringer{}}
 }
 
 func (t Template[T]) With(attrs T) Template[T] {
@@ -409,14 +558,10 @@ func (t Template[T]) With(attrs T) Template[T] {
 	return t
 }
 
-func (t Template[T]) Content(contents ...Node) Template[T] {
+func (t Template[T]) Content(contents ...fmt.Stringer) Template[T] {
 	t.childs = contents
 
 	return t
-}
-
-func (t Template[T]) Childs() []Node {
-	return t.childs
 }
 
 func (t Template[T]) String() string {
